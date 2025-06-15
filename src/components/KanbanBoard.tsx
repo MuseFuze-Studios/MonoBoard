@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Plus, FileText } from 'lucide-react';
 import {
   DndContext,
@@ -11,11 +11,12 @@ import {
   useSensors,
 } from '@dnd-kit/core';
 import { arrayMove, SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable';
-import { Project, Task, Column as ColumnType } from '../types';
+import { Project, Task, Column as ColumnType, FilterState } from '../types';
 import { Column } from './Column';
 import { TaskCard } from './TaskCard';
 import { TaskModal } from './TaskModal';
 import { NotesPanel } from './NotesPanel';
+import { FilterToolbar } from './FilterToolbar';
 
 interface KanbanBoardProps {
   project: Project;
@@ -27,6 +28,13 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ project, onUpdateProje
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isNotesOpen, setIsNotesOpen] = useState(false);
+  const [expandedColumns, setExpandedColumns] = useState<Set<string>>(new Set());
+  const [filters, setFilters] = useState<FilterState>({
+    tags: [],
+    priority: [],
+    sortBy: 'dueDate',
+    sortOrder: 'asc',
+  });
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -35,6 +43,63 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ project, onUpdateProje
       },
     })
   );
+
+  // Get all available tags from tasks
+  const availableTags = useMemo(() => {
+    const tagSet = new Set<string>();
+    project.tasks.forEach(task => {
+      task.tags.forEach(tag => tagSet.add(tag));
+    });
+    return Array.from(tagSet).sort();
+  }, [project.tasks]);
+
+  // Filter and sort tasks
+  const filteredTasks = useMemo(() => {
+    let filtered = project.tasks;
+
+    // Apply tag filters
+    if (filters.tags.length > 0) {
+      filtered = filtered.filter(task =>
+        filters.tags.some(tag => task.tags.includes(tag))
+      );
+    }
+
+    // Apply priority filters
+    if (filters.priority.length > 0) {
+      filtered = filtered.filter(task =>
+        filters.priority.includes(task.priority)
+      );
+    }
+
+    // Sort tasks
+    filtered.sort((a, b) => {
+      let comparison = 0;
+
+      switch (filters.sortBy) {
+        case 'dueDate':
+          if (a.dueDate && !b.dueDate) comparison = -1;
+          else if (!a.dueDate && b.dueDate) comparison = 1;
+          else if (a.dueDate && b.dueDate) {
+            comparison = new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+          }
+          break;
+        case 'priority':
+          const priorityOrder = { high: 3, medium: 2, low: 1 };
+          comparison = priorityOrder[b.priority] - priorityOrder[a.priority];
+          break;
+        case 'title':
+          comparison = a.title.localeCompare(b.title);
+          break;
+        case 'created':
+          comparison = a.id.localeCompare(b.id); // Using ID as proxy for creation order
+          break;
+      }
+
+      return filters.sortOrder === 'desc' ? -comparison : comparison;
+    });
+
+    return filtered;
+  }, [project.tasks, filters]);
 
   const handleDragStart = (event: DragStartEvent) => {
     const task = project.tasks.find(t => t.id === event.active.id);
@@ -93,7 +158,9 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ project, onUpdateProje
       id: '',
       title: '',
       description: '',
+      notes: '',
       tags: [],
+      priority: 'medium',
       checklist: [],
       columnId,
     });
@@ -142,6 +209,30 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ project, onUpdateProje
     });
   };
 
+  const handleToggleViewMode = (columnId: string) => {
+    const updatedColumns = project.columns.map(col =>
+      col.id === columnId 
+        ? { ...col, viewMode: col.viewMode === 'kanban' ? 'timeline' : 'kanban' }
+        : col
+    );
+    
+    onUpdateProject({
+      ...project,
+      columns: updatedColumns,
+      updatedAt: new Date().toISOString(),
+    });
+  };
+
+  const handleToggleExpanded = (columnId: string) => {
+    const newExpandedColumns = new Set(expandedColumns);
+    if (expandedColumns.has(columnId)) {
+      newExpandedColumns.delete(columnId);
+    } else {
+      newExpandedColumns.add(columnId);
+    }
+    setExpandedColumns(newExpandedColumns);
+  };
+
   const addColumn = () => {
     const colors = ['#ef4444', '#f59e0b', '#8b5cf6', '#10b981', '#06b6d4', '#f97316'];
     const usedColors = project.columns.map(c => c.color);
@@ -151,6 +242,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ project, onUpdateProje
       id: crypto.randomUUID(),
       title: `Column ${project.columns.length + 1}`,
       color: availableColor,
+      viewMode: 'kanban',
     };
 
     onUpdateProject({
@@ -180,19 +272,37 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ project, onUpdateProje
     });
   };
 
+  const clearFilters = () => {
+    setFilters({
+      tags: [],
+      priority: [],
+      sortBy: 'dueDate',
+      sortOrder: 'asc',
+    });
+  };
+
   return (
-    <div className="flex-1 overflow-hidden relative">
+    <div className="flex-1 overflow-hidden relative flex flex-col">
+      <FilterToolbar
+        availableTags={availableTags}
+        filters={filters}
+        onFiltersChange={setFilters}
+        onClearFilters={clearFilters}
+      />
+
       <DndContext
         sensors={sensors}
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        <div className="p-6 h-full overflow-x-auto">
+        <div className="flex-1 p-6 overflow-x-auto">
           <div className="flex space-x-6 h-full">
             <SortableContext items={project.columns.map(c => c.id)} strategy={horizontalListSortingStrategy}>
               {project.columns.map((column) => {
-                const columnTasks = project.tasks.filter(t => t.columnId === column.id);
+                const columnTasks = filteredTasks.filter(t => t.columnId === column.id);
+                const isExpanded = expandedColumns.has(column.id);
+                
                 return (
                   <Column
                     key={column.id}
@@ -202,6 +312,9 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ project, onUpdateProje
                     onEditTask={handleEditTask}
                     onRenameColumn={handleRenameColumn}
                     onDeleteColumn={deleteColumn}
+                    onToggleViewMode={handleToggleViewMode}
+                    isExpanded={isExpanded}
+                    onToggleExpanded={handleToggleExpanded}
                   />
                 );
               })}
