@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, Tag, CheckSquare, Square, Edit3 } from 'lucide-react';
+import { Calendar, Tag, CheckSquare, Square, Edit3, AlertCircle, FileText } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Task } from '../types';
@@ -28,6 +28,24 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onEdit }) => {
   const totalItems = task.checklist.length;
   const isOverdue = task.dueDate && new Date(task.dueDate) < new Date();
 
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'high': return 'text-red-400 bg-red-400/20';
+      case 'medium': return 'text-yellow-400 bg-yellow-400/20';
+      case 'low': return 'text-green-400 bg-green-400/20';
+      default: return 'text-gray-400 bg-gray-400/20';
+    }
+  };
+
+  const getPriorityIcon = (priority: string) => {
+    switch (priority) {
+      case 'high': return '🔴';
+      case 'medium': return '🟡';
+      case 'low': return '🟢';
+      default: return '⚪';
+    }
+  };
+
   return (
     <div
       ref={setNodeRef}
@@ -39,21 +57,38 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onEdit }) => {
       }`}
     >
       <div className="flex items-start justify-between mb-3">
-        <h3 className="text-white font-medium line-clamp-2 flex-1">{task.title}</h3>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onEdit(task);
-          }}
-          className="text-gray-400 hover:text-white p-1 rounded transition-colors"
-        >
-          <Edit3 className="w-4 h-4" />
-        </button>
+        <div className="flex items-start space-x-2 flex-1">
+          <span className="text-sm mt-0.5">{getPriorityIcon(task.priority)}</span>
+          <h3 className="text-white font-medium line-clamp-2 flex-1">{task.title}</h3>
+        </div>
+        <div className="flex items-center space-x-1">
+          {task.notes && (
+            <div className="text-gray-400" title="Has notes">
+              <FileText className="w-4 h-4" />
+            </div>
+          )}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit(task);
+            }}
+            className="text-gray-400 hover:text-white p-1 rounded transition-colors"
+          >
+            <Edit3 className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {task.description && (
         <p className="text-gray-300 text-sm mb-3 line-clamp-3">{task.description}</p>
       )}
+
+      <div className="flex items-center justify-between mb-3">
+        <div className={`flex items-center px-2 py-1 rounded-full text-xs ${getPriorityColor(task.priority)}`}>
+          <AlertCircle className="w-3 h-3 mr-1" />
+          <span className="capitalize">{task.priority}</span>
+        </div>
+      </div>
 
       {task.tags.length > 0 && (
         <div className="flex flex-wrap gap-1 mb-3">

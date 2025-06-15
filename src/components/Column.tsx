@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Plus, MoreHorizontal, Edit3, Trash2 } from 'lucide-react';
+import { Plus, MoreHorizontal, Edit3, Trash2, LayoutGrid, Clock } from 'lucide-react';
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { Column as ColumnType, Task } from '../types';
 import { TaskCard } from './TaskCard';
+import { TimelineView } from './TimelineView';
 
 interface ColumnProps {
   column: ColumnType;
@@ -12,6 +13,7 @@ interface ColumnProps {
   onEditTask: (task: Task) => void;
   onRenameColumn: (columnId: string, newTitle: string) => void;
   onDeleteColumn?: (columnId: string) => void;
+  onToggleViewMode: (columnId: string) => void;
 }
 
 export const Column: React.FC<ColumnProps> = ({
@@ -21,6 +23,7 @@ export const Column: React.FC<ColumnProps> = ({
   onEditTask,
   onRenameColumn,
   onDeleteColumn,
+  onToggleViewMode,
 }) => {
   const { setNodeRef, isOver } = useDroppable({
     id: column.id,
@@ -52,6 +55,11 @@ export const Column: React.FC<ColumnProps> = ({
     if (onDeleteColumn && confirm(`Are you sure you want to delete the "${column.title}" column? All tasks in this column will be deleted.`)) {
       onDeleteColumn(column.id);
     }
+    setShowMenu(false);
+  };
+
+  const handleToggleViewMode = () => {
+    onToggleViewMode(column.id);
     setShowMenu(false);
   };
 
@@ -93,6 +101,17 @@ export const Column: React.FC<ColumnProps> = ({
           
           <div className="flex items-center space-x-1">
             <button
+              onClick={handleToggleViewMode}
+              className={`p-1 rounded transition-colors ${
+                column.viewMode === 'timeline'
+                  ? 'text-purple-400 bg-purple-400/20'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+              title={column.viewMode === 'timeline' ? 'Switch to Kanban view' : 'Switch to Timeline view'}
+            >
+              {column.viewMode === 'timeline' ? <Clock className="w-4 h-4" /> : <LayoutGrid className="w-4 h-4" />}
+            </button>
+            <button
               onClick={() => onAddTask(column.id)}
               className="text-gray-400 hover:text-white p-1 rounded transition-colors"
               title="Add task"
@@ -118,6 +137,13 @@ export const Column: React.FC<ColumnProps> = ({
                       <Edit3 className="w-4 h-4" />
                       <span>Rename</span>
                     </button>
+                    <button
+                      onClick={handleToggleViewMode}
+                      className="flex items-center space-x-2 w-full text-left px-3 py-2 text-sm text-white hover:bg-gray-700 rounded transition-colors"
+                    >
+                      {column.viewMode === 'timeline' ? <LayoutGrid className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
+                      <span>{column.viewMode === 'timeline' ? 'Kanban View' : 'Timeline View'}</span>
+                    </button>
                     {onDeleteColumn && column.id !== 'todo' && column.id !== 'done' && (
                       <button
                         onClick={handleDeleteColumn}
@@ -141,24 +167,28 @@ export const Column: React.FC<ColumnProps> = ({
           }`}
           onClick={() => setShowMenu(false)}
         >
-          <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
-            <div className="space-y-3">
-              {tasks.map((task) => (
-                <TaskCard key={task.id} task={task} onEdit={onEditTask} />
-              ))}
-              {tasks.length === 0 && (
-                <div className="text-center py-8">
-                  <p className="text-gray-500 text-sm">No tasks yet</p>
-                  <button
-                    onClick={() => onAddTask(column.id)}
-                    className="mt-2 text-purple-400 hover:text-purple-300 text-sm transition-colors"
-                  >
-                    Add your first task
-                  </button>
-                </div>
-              )}
-            </div>
-          </SortableContext>
+          {column.viewMode === 'timeline' ? (
+            <TimelineView tasks={tasks} onEditTask={onEditTask} />
+          ) : (
+            <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
+              <div className="space-y-3">
+                {tasks.map((task) => (
+                  <TaskCard key={task.id} task={task} onEdit={onEditTask} />
+                ))}
+                {tasks.length === 0 && (
+                  <div className="text-center py-8">
+                    <p className="text-gray-500 text-sm">No tasks yet</p>
+                    <button
+                      onClick={() => onAddTask(column.id)}
+                      className="mt-2 text-purple-400 hover:text-purple-300 text-sm transition-colors"
+                    >
+                      Add your first task
+                    </button>
+                  </div>
+                )}
+              </div>
+            </SortableContext>
+          )}
         </div>
       </div>
     </div>
