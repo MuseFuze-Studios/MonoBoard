@@ -28,6 +28,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ project, onUpdateProje
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isNotesOpen, setIsNotesOpen] = useState(false);
+  const [expandedColumns, setExpandedColumns] = useState<Set<string>>(new Set());
   const [filters, setFilters] = useState<FilterState>({
     tags: [],
     priority: [],
@@ -222,6 +223,16 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ project, onUpdateProje
     });
   };
 
+  const handleToggleExpanded = (columnId: string) => {
+    const newExpandedColumns = new Set(expandedColumns);
+    if (expandedColumns.has(columnId)) {
+      newExpandedColumns.delete(columnId);
+    } else {
+      newExpandedColumns.add(columnId);
+    }
+    setExpandedColumns(newExpandedColumns);
+  };
+
   const addColumn = () => {
     const colors = ['#ef4444', '#f59e0b', '#8b5cf6', '#10b981', '#06b6d4', '#f97316'];
     const usedColors = project.columns.map(c => c.color);
@@ -290,6 +301,8 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ project, onUpdateProje
             <SortableContext items={project.columns.map(c => c.id)} strategy={horizontalListSortingStrategy}>
               {project.columns.map((column) => {
                 const columnTasks = filteredTasks.filter(t => t.columnId === column.id);
+                const isExpanded = expandedColumns.has(column.id);
+                
                 return (
                   <Column
                     key={column.id}
@@ -300,6 +313,8 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ project, onUpdateProje
                     onRenameColumn={handleRenameColumn}
                     onDeleteColumn={deleteColumn}
                     onToggleViewMode={handleToggleViewMode}
+                    isExpanded={isExpanded}
+                    onToggleExpanded={handleToggleExpanded}
                   />
                 );
               })}
